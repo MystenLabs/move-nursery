@@ -21,7 +21,7 @@ A project **MUST** include a `README.md` with clear specifications/steps on how 
 
 Please make sure projects are consistent with the quality standard that the sui repo honors. License and copyrights should be well defined in each file in the project. Different copyrights than those used in the sui repo will be evaluated on a case by case and discussed in the PR with the owner. Make sure to clearly highlight when a different copyright than that used in the sui repo is proposed.
 
-Because projects are linked against specific version (commit hash) of the sui repo is vital that owners take responsibility to update those versions over time. Please make sure to update those references within a reasonable timeline.
+Because projects are linked against specific version (commit hash) of the sui repo is vital that owners take responsibility to update those versions over time. Please make sure to update those references with reasonable timelines.
 
 There is no CI at the moment and we will define one at some point soon.
 
