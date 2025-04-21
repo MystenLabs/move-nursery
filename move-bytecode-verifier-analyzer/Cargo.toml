@@ -1,0 +1,26 @@
+[package]
+name = "move-bytecode-verifier-analyzer"
+version = "0.0.1"
+authors = ["The Move Contributors"]
+publish = false
+edition = "2024"
+license = "Apache-2.0"
+
+[dependencies]
+anyhow = "1.0.52"
+clap = { version = "4", features = ["derive"] }
+
+move-binary-format = { git = "https://github.com/MystenLabs/sui/", rev = "7a0cdb2" }
+move-bytecode-verifier = { git = "https://github.com/MystenLabs/sui/", rev = "7a0cdb2" }
+move-bytecode-verifier-meter = { git = "https://github.com/MystenLabs/sui/", rev = "7a0cdb2" }
+move-command-line-common = { git = "https://github.com/MystenLabs/sui/", rev = "7a0cdb2" }
+move-core-types = { git = "https://github.com/MystenLabs/sui/", rev = "7a0cdb2" }
+move-vm-config = { git = "https://github.com/MystenLabs/sui/", rev = "7a0cdb2" }
+
+[features]
+default = []
+
+[[bin]]
+edition = "2024"
+name = "move-bytecode-verifier-analyzer"
+path = "bin/main.rs"
