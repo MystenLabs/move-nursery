@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transaction Model Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+        }
+        .section {
+            background: #222;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        h2 { color: #4a9eff; }
+        pre {
+            background: #000;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+        .log {
+            color: #87ceeb;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Transaction Model Test</h1>
+    <p>Testing the unified Transaction object model with replay_cache_summary.json</p>
+
+    <div class="section">
+        <h2>Test Output</h2>
+        <div id="output"></div>
+    </div>
+
+    <script src="transaction-model.js"></script>
+    <script>
+        const output = document.getElementById('output');
+
+        function log(message) {
+            const div = document.createElement('div');
+            div.className = 'log';
+            div.textContent = message;
+            output.appendChild(div);
+        }
+
+        function logObject(label, obj) {
+            log(label);
+            const pre = document.createElement('pre');
+            pre.textContent = JSON.stringify(obj, null, 2);
+            output.appendChild(pre);
+        }
+
+        // Test data (from actual replay_cache_summary.json)
+        const replayCacheSummary = {
+            "epoch_id": 341,
+            "checkpoint": 29169785,
+            "network": "mainnet",
+            "cache_entries": [
+                {
+                    "object_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
+                    "version": 4,
+                    "object_type": {
+                        "Package": {
+                            "published_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
+                            "original_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
+                            "module_names": ["address", "ascii", "bcs"]
+                        }
+                    }
+                },
+                {
+                    "object_id": "0x0000000000000000000000000000000000000000000000000000000000000002",
+                    "version": 18,
+                    "object_type": {
+                        "Package": {
+                            "published_id": "0x0000000000000000000000000000000000000000000000000000000000000002",
+                            "original_id": "0x0000000000000000000000000000000000000000000000000000000000000002",
+                            "module_names": ["coin", "sui", "transfer"]
+                        }
+                    }
+                },
+                {
+                    "object_id": "0x0000000000000000000000000000000000000000000000000000000000000006",
+                    "version": 29169786,
+                    "object_type": {
+                        "MoveObject": {
+                            "address": "0000000000000000000000000000000000000000000000000000000000000002",
+                            "module": "clock",
+                            "name": "Clock",
+                            "type_args": []
+                        }
+                    }
+                },
+                {
+                    "object_id": "0xdf9d6f2ee941ab44b02b63f93aa36ac7c14f360733d957bd6e7093817e76281f",
+                    "version": 43816513,
+                    "object_type": {
+                        "MoveObject": {
+                            "address": "0000000000000000000000000000000000000000000000000000000000000002",
+                            "module": "coin",
+                            "name": "Coin",
+                            "type_args": [{
+                                "struct": {
+                                    "address": "0000000000000000000000000000000000000000000000000000000000000002",
+                                    "module": "sui",
+                                    "name": "SUI",
+                                    "type_args": []
+                                }
+                            }]
+                        }
+                    }
+                }
+            ]
+        };
+
+        // Test data for transaction_data.json
+        const transactionData = {
+            "V1": {
+                "kind": {
+                    "ProgrammableTransaction": {
+                        "inputs": [
+                            { "Object": { "SharedObject": { "id": "0x4e8e0af080120050de81412dba19d8f3da07bb1e94fcb8b65dcf2a7673c51d0a", "initial_shared_version": 27983618, "mutable": true } } },
+                            { "Pure": [0, 0, 0, 0, 0, 0, 0, 0] }
+                        ],
+                        "commands": [
+                            { "SplitCoins": ["GasCoin", [{ "Input": 0 }]] },
+                            {
+                                "MoveCall": {
+                                    "package": "0xf4702e4862054612647c0e0a19d167d48a91240e642196c18375743a27d33d04",
+                                    "module": "postLib",
+                                    "function": "createReply",
+                                    "type_arguments": [],
+                                    "arguments": [{ "Input": 0 }, { "Input": 1 }]
+                                }
+                            }
+                        ]
+                    }
+                },
+                "sender": "0xab5e81013745e18ed8708fa81b0c2ac781562a1088b95e6a9878f8aa17f2ec7c",
+                "gas_data": {
+                    "payment": [
+                        ["0xdf9d6f2ee941ab44b02b63f93aa36ac7c14f360733d957bd6e7093817e76281f", 43816513, "FGLQ3sz1X6GTTYQWLx37BrmQE4J2Hmj3NshFnQXiy8hY"]
+                    ],
+                    "owner": "0xbf48780e1d60a6d30939114ba60371828108c227728eb7352cee054bf86d724d",
+                    "price": 750,
+                    "budget": 300000000
+                },
+                "expiration": "None"
+            }
+        };
+
+        // Test data for transaction_gas_report.json
+        const transactionGasReport = {
+            "cost_summary": {
+                "computationCost": "750000",
+                "storageCost": "30278400",
+                "storageRebate": "29975616",
+                "nonRefundableStorageFee": "302784"
+            },
+            "gas_used": 617,
+            "gas_budget": 300000000,
+            "gas_price": 750,
+            "reference_gas_price": 750,
+            "storage_gas_price": 76,
+            "rebate_rate": 9900,
+            "per_object_storage": [
+                ["0x4e8e0af080120050de81412dba19d8f3da07bb1e94fcb8b65dcf2a7673c51d0a", {
+                    "storage_cost": 1710000,
+                    "storage_rebate": 1710000,
+                    "new_size": 225
+                }],
+                ["0x68e1e1874366f98d08975d326a71ff1c817712c7673da903ab3b50b2a2e2f0d9", {
+                    "storage_cost": 3154000,
+                    "storage_rebate": 3154000,
+                    "new_size": 415
+                }],
+                ["0xdf9d6f2ee941ab44b02b63f93aa36ac7c14f360733d957bd6e7093817e76281f", {
+                    "storage_cost": 988000,
+                    "storage_rebate": 988000,
+                    "new_size": 130
+                }]
+            ]
+        };
+
+        // Create and test the transaction model
+        log('=== Creating Transaction object ===');
+        const txn = new Transaction();
+
+        log('\n=== Step 1: Loading replay_cache_summary.json ===');
+        txn.loadReplayCacheSummary(replayCacheSummary);
+
+        log('\n=== Step 2: Loading transaction_data.json ===');
+        txn.loadTransactionData(transactionData);
+
+        log('\n=== Step 3: Loading transaction_gas_report.json ===');
+        txn.loadTransactionGasReport(transactionGasReport);
+
+        // Test data for move_call_info.json
+        const ptbDetails = {
+            "command_signatures": [
+                null, // SplitCoins command - no signature
+                {
+                    "package": "0xf4702e4862054612647c0e0a19d167d48a91240e642196c18375743a27d33d04",
+                    "module": "postLib",
+                    "function": "createReply",
+                    "parameters": [
+                        { "struct": { "address": "f4702e4862054612647c0e0a19d167d48a91240e642196c18375743a27d33d04", "module": "userLib", "name": "UsersRatingCollection", "type_args": [] } },
+                        { "struct": { "address": "0000000000000000000000000000000000000000000000000000000000000002", "module": "clock", "name": "Clock", "type_args": [] } }
+                    ],
+                    "return_types": []
+                }
+            ]
+        };
+
+        log('\n=== Step 4: Loading move_call_info.json ===');
+        txn.loadPtbDetails(ptbDetails);
+
+        // Test data for transaction_effects.json (V2)
+        const transactionEffectsV2 = {
+            "V2": {
+                "status": "Success",
+                "executed_epoch": 327,
+                "transaction_digest": "HzKdWEhutkrwHBp3UcV8AWsmSVE9Mks8vdwQUbQK41Yx",
+                "dependencies": ["iechJQEVFsPb4NkJkkyhpj1r663BgtyWoEZPpsDdpbf", "4TTxsuazjmm22Pgbbi669XCtxL2Fdfi1MeCUEG3kLqtv"],
+                "changed_objects": [
+                    ["0x08d73f810fa4e2a9ed14375e69650926c22cfc32f8d967e065eccb9ff86fabe8", {
+                        "input_state": { "Exist": [[74099869, "HHYPfyjAiLZPGrdtwfjNbZJTZrVEesEMKmrempzBgebL"], {"AddressOwner": "0x249f850e7cb82ce6c47d3d67ba5a8eaf8c7cf5776478f2a4ef6c5ea0f3e5abeb"}] },
+                        "output_state": { "ObjectWrite": ["NuXCjxhfkvRVcGizBL7bysu4PmAej5Et4bVd7iYgMiA", {"AddressOwner": "0x249f850e7cb82ce6c47d3d67ba5a8eaf8c7cf5776478f2a4ef6c5ea0f3e5abeb"}] },
+                        "id_operation": "None"
+                    }],
+                    ["0x1294868140cee550f2993f52c08457b73399b8cf02facf7bc1c6b49866e237df", {
+                        "input_state": { "Exist": [[74324583, "4X1Ggy9oXAW6CMi8SUyE19wn6SPNrxfju6rAGcR2Tvq8"], {"AddressOwner": "0x249f850e7cb82ce6c47d3d67ba5a8eaf8c7cf5776478f2a4ef6c5ea0f3e5abeb"}] },
+                        "output_state": "NotExist",
+                        "id_operation": "Deleted"
+                    }]
+                ]
+            }
+        };
+
+        log('\n=== Step 5: Loading transaction_effects.json (V2) ===');
+        txn.loadTransactionEffects(transactionEffectsV2);
+
+        log('\n=== Transaction Summary (after all loads) ===');
+        logObject('getSummary():', txn.getSummary());
+
+        log('\n=== API: transaction.kind ===');
+        logObject('kind:', txn.kind);
+
+        log('\n=== API: transaction.gas_data (unified gas information) ===');
+        logObject('gas_data:', txn.gas_data);
+
+        log('\n=== API: transaction.gas_data.per_object_breakup ===');
+        logObject('per_object_breakup:', txn.gas_data.per_object_breakup);
+
+        log('\n=== API: transaction.commands (merged data + signatures) ===');
+        logObject('commands:', txn.commands);
+
+        log('\n=== API: transaction.changed_objects ===');
+        logObject('changed_objects:', txn.changed_objects);
+
+        log('\n=== API: transaction.deps ===');
+        log('dependencies:', txn.deps);
+
+        log('\n=== API: transaction.packages ===');
+        logObject('Packages:', txn.packages.map(p => ({
+            object_id: p.object_id,
+            version: p.version,
+            published_id: p.object_type.Package.published_id
+        })));
+
+        log('\n=== API: transaction.objects ===');
+        logObject('Move Objects:', txn.objects.map(o => ({
+            object_id: o.object_id,
+            version: o.version,
+            type: o.object_type.MoveObject
+        })));
+
+        log('\n=== API: transaction.allObjects ===');
+        log(`Total objects: ${txn.allObjects.length}`);
+        log(`  - Packages: ${txn.packages.length}`);
+        log(`  - Move Objects: ${txn.objects.length}`);
+    </script>
+</body>
+</html>
