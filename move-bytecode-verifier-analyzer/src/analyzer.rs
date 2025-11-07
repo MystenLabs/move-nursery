@@ -5,7 +5,7 @@ use move_bytecode_verifier::{
     verifier::verify_module_with_config_metered_up_to_code_units,
     verify_module_with_config_metered,
 };
-use move_bytecode_verifier_meter::{Meter, Scope, bound::BoundMeter};
+use move_bytecode_verifier_meter::{Meter, Scope, bound::BoundMeter, dummy::DummyMeter};
 use move_command_line_common::files::{MOVE_COMPILED_EXTENSION, extension_equals, find_filenames};
 use move_core_types::{account_address::AccountAddress, identifier::Identifier};
 use move_vm_config::verifier::VerifierConfig;
@@ -50,10 +50,14 @@ pub struct Options {
         name = "VERBOSE",
         short = 'v',
         long = "verbose",
-        help = "Print while analyzing each module"
+        help = "Print while analyzing each module. 0 is silent. 1 is just failures. 2 is everything.",
+        default_value_t = 0
     )]
-    pub verbose: bool,
+    pub verbose: u8,
 }
+
+const VERBOSE_FAILURES: u8 = 1;
+const VERBOSE_EVERYTHING: u8 = 2;
 
 enum Filter {
     None,
@@ -88,13 +92,13 @@ pub fn run() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn analyze_files(verbose: bool, paths: &[String], filter: &Filter) -> anyhow::Result<Data> {
+fn analyze_files(verbose: u8, paths: &[String], filter: &Filter) -> anyhow::Result<Data> {
     let files = find_filenames(paths, |p| extension_equals(p, MOVE_COMPILED_EXTENSION))?;
     let mut package_data: BTreeMap<AccountAddress, PackageData> = BTreeMap::new();
     let mut package_meters: BTreeMap<AccountAddress, BoundMeter> = BTreeMap::new();
     let mut deserialized_modules = BTreeMap::new();
     for file in files {
-        if verbose {
+        if verbose >= VERBOSE_EVERYTHING {
             println!("READING: {}", file);
         }
         let bytes = std::fs::read(&file)?;
@@ -107,12 +111,12 @@ fn analyze_files(verbose: bool, paths: &[String], filter: &Filter) -> anyhow::Re
         let address = *self_id.address();
         let name = self_id.name().to_owned();
         if !(filter.visit_package(&address) && filter.visit_module(&name)) {
-            if verbose {
+            if verbose >= VERBOSE_EVERYTHING {
                 println!("SKIPPING: {}::{}", address, name);
             }
             continue;
         }
-        if verbose {
+        if verbose >= VERBOSE_EVERYTHING {
             println!("ANALYZING: {}::{}", address, name);
         }
         let package_meter = package_meters.entry(address).or_insert_with(|| {
@@ -136,7 +140,7 @@ fn analyze_files(verbose: bool, paths: &[String], filter: &Filter) -> anyhow::Re
 }
 
 fn analyze_module(
-    verbose: bool,
+    verbose: u8,
     module: &CompiledModule,
     package_meter: &mut BoundMeter,
     filter: &Filter,
@@ -156,7 +160,7 @@ fn analyze_module(
 }
 
 fn analyze_module_(
-    verbose: bool,
+    verbose: u8,
     module: &CompiledModule,
     filter: &Filter,
 ) -> anyhow::Result<ModuleVerificationResult> {
@@ -169,7 +173,7 @@ fn analyze_module_(
         ability_cache,
         &mut meter,
     ) {
-        if verbose {
+        if verbose >= VERBOSE_FAILURES {
             println!("FAILED {}::{}: {}", module.address(), module.name(), error);
         }
         return Ok(ModuleVerificationResult {
@@ -191,7 +195,7 @@ fn analyze_module_(
         let fh = module.function_handle_at(function_definition.function);
         let name = module.identifier_at(fh.name).as_str();
         if !filter.visit_function(name) {
-            if verbose {
+            if verbose >= VERBOSE_EVERYTHING {
                 println!(
                     "SKIPPING: {}::{}::{}",
                     module.address(),
@@ -201,7 +205,7 @@ fn analyze_module_(
             }
             continue;
         }
-        if verbose {
+        if verbose >= VERBOSE_EVERYTHING {
             println!(
                 "ANALYZING: {}::{}::{}",
                 module.address(),
@@ -218,8 +222,9 @@ fn analyze_module_(
             ability_cache,
             &name_def_map,
             &mut meter,
+            &mut DummyMeter,
         ) {
-            if verbose {
+            if verbose >= VERBOSE_FAILURES {
                 println!(
                     "FAILED {}::{}::{}: {}",
                     module.address(),
