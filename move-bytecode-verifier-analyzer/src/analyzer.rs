@@ -50,14 +50,62 @@ pub struct Options {
         name = "VERBOSE",
         short = 'v',
         long = "verbose",
-        help = "Print while analyzing each module. 0 is silent. 1 is just failures. 2 is everything.",
-        default_value_t = 0
+        help = "Print flags. 'm' for modules. 'f' for functions. 'x' for failures. 's' for skipped. Include any and all of these letters to increase verbosity. No flags means quiet mode."
     )]
-    pub verbose: u8,
+    pub verbose: Option<String>,
 }
 
-const VERBOSE_FAILURES: u8 = 1;
-const VERBOSE_EVERYTHING: u8 = 2;
+#[derive(Clone, Copy)]
+struct Verbosity {
+    modules: bool,
+    functions: bool,
+    failures: bool,
+    skipped: bool,
+}
+
+impl Verbosity {
+    fn parse(opt: Option<String>) -> Self {
+        let string = opt.unwrap_or_default();
+        let mut flags = string.chars().collect::<Vec<_>>();
+        let mut get_flag = |flag: char| -> bool {
+            flags
+                .iter()
+                .position(|c| c == &flag)
+                .map(|idx| flags.swap_remove(idx))
+                .is_some()
+        };
+
+        let modules = get_flag('m');
+        let functions = get_flag('f');
+        let failures = get_flag('x');
+        let skipped = get_flag('s');
+        if !flags.is_empty() {
+            panic!("Unknown verbosity flags: {:?}", flags);
+        }
+        Self {
+            modules,
+            functions,
+            failures,
+            skipped,
+        }
+    }
+
+    fn modules(&self) -> bool {
+        self.modules
+    }
+
+    fn functions(&self) -> bool {
+        self.functions
+    }
+
+    fn failures(&self) -> bool {
+        self.failures
+    }
+
+    fn skipped(&self) -> bool {
+        self.skipped
+    }
+}
 
 enum Filter {
     None,
@@ -87,18 +135,19 @@ pub fn run() -> anyhow::Result<()> {
     } = Options::parse();
     assert!(!paths.is_empty(), "No paths provided");
     let filter = parse_filter(filter)?;
+    let verbose = Verbosity::parse(verbose);
     let data = analyze_files(verbose, &paths, &filter)?;
     println!("{}", data.display(show_ticks));
     Ok(())
 }
 
-fn analyze_files(verbose: u8, paths: &[String], filter: &Filter) -> anyhow::Result<Data> {
+fn analyze_files(verbose: Verbosity, paths: &[String], filter: &Filter) -> anyhow::Result<Data> {
     let files = find_filenames(paths, |p| extension_equals(p, MOVE_COMPILED_EXTENSION))?;
     let mut package_data: BTreeMap<AccountAddress, PackageData> = BTreeMap::new();
     let mut package_meters: BTreeMap<AccountAddress, BoundMeter> = BTreeMap::new();
     let mut deserialized_modules = BTreeMap::new();
     for file in files {
-        if verbose >= VERBOSE_EVERYTHING {
+        if verbose.modules() {
             println!("READING: {}", file);
         }
         let bytes = std::fs::read(&file)?;
@@ -111,12 +160,12 @@ fn analyze_files(verbose: u8, paths: &[String], filter: &Filter) -> anyhow::Resu
         let address = *self_id.address();
         let name = self_id.name().to_owned();
         if !(filter.visit_package(&address) && filter.visit_module(&name)) {
-            if verbose >= VERBOSE_EVERYTHING {
+            if verbose.skipped() {
                 println!("SKIPPING: {}::{}", address, name);
             }
             continue;
         }
-        if verbose >= VERBOSE_EVERYTHING {
+        if verbose.modules() {
             println!("ANALYZING: {}::{}", address, name);
         }
         let package_meter = package_meters.entry(address).or_insert_with(|| {
@@ -140,7 +189,7 @@ fn analyze_files(verbose: u8, paths: &[String], filter: &Filter) -> anyhow::Resu
 }
 
 fn analyze_module(
-    verbose: u8,
+    verbose: Verbosity,
     module: &CompiledModule,
     package_meter: &mut BoundMeter,
     filter: &Filter,
@@ -160,7 +209,7 @@ fn analyze_module(
 }
 
 fn analyze_module_(
-    verbose: u8,
+    verbose: Verbosity,
     module: &CompiledModule,
     filter: &Filter,
 ) -> anyhow::Result<ModuleVerificationResult> {
@@ -173,7 +222,7 @@ fn analyze_module_(
         ability_cache,
         &mut meter,
     ) {
-        if verbose >= VERBOSE_FAILURES {
+        if verbose.failures() {
             println!("FAILED {}::{}: {}", module.address(), module.name(), error);
         }
         return Ok(ModuleVerificationResult {
@@ -195,7 +244,7 @@ fn analyze_module_(
         let fh = module.function_handle_at(function_definition.function);
         let name = module.identifier_at(fh.name).as_str();
         if !filter.visit_function(name) {
-            if verbose >= VERBOSE_EVERYTHING {
+            if verbose.skipped() {
                 println!(
                     "SKIPPING: {}::{}::{}",
                     module.address(),
@@ -205,7 +254,7 @@ fn analyze_module_(
             }
             continue;
         }
-        if verbose >= VERBOSE_EVERYTHING {
+        if verbose.functions() {
             println!(
                 "ANALYZING: {}::{}::{}",
                 module.address(),
@@ -224,7 +273,7 @@ fn analyze_module_(
             &mut meter,
             &mut DummyMeter,
         ) {
-            if verbose >= VERBOSE_FAILURES {
+            if verbose.failures() {
                 println!(
                     "FAILED {}::{}::{}: {}",
                     module.address(),
