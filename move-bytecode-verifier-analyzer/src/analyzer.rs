@@ -55,7 +55,7 @@ pub struct Options {
     pub verbose: Option<String>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct Verbosity {
     modules: bool,
     functions: bool,
@@ -114,6 +114,7 @@ impl Verbosity {
     }
 }
 
+#[derive(Debug)]
 enum Filter {
     None,
     Address(AccountAddress),
@@ -149,10 +150,19 @@ pub fn run() -> anyhow::Result<()> {
 }
 
 fn analyze_files(verbose: Verbosity, paths: &[String], filter: &Filter) -> anyhow::Result<Data> {
+    println!("Verbosity: {:?}", verbose);
+    println!("Filter: {:?}", filter);
     let files = find_filenames(paths, |p| extension_equals(p, MOVE_COMPILED_EXTENSION))?;
     let mut package_data: BTreeMap<AccountAddress, PackageData> = BTreeMap::new();
     let mut package_meters: BTreeMap<AccountAddress, BoundMeter> = BTreeMap::new();
-    for file in files {
+    let nfiles = files.len();
+    for (i, file) in files.into_iter().enumerate() {
+        let idx = i + 1;
+        let current_percentile = (idx * 10).div_ceil(nfiles);
+        let next_percentile = ((idx + 1) * 10).div_ceil(nfiles);
+        if idx == 1 || next_percentile > current_percentile {
+            println!("Progress: {}/{}", idx, nfiles);
+        }
         if verbose.io() {
             println!("READING: {}", file);
         }
