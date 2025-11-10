@@ -50,7 +50,7 @@ pub struct Options {
         name = "VERBOSE",
         short = 'v',
         long = "verbose",
-        help = "Print flags. 'm' for modules. 'f' for functions. 'x' for failures. 's' for skipped. Include any and all of these letters to increase verbosity. No flags means quiet mode."
+        help = "Print flags. 'm' for modules. 'f' for functions. 'x' for failures. 's' for skipped. 'i' for io/files. Include any and all of these letters to increase verbosity. No flags means quiet mode."
     )]
     pub verbose: Option<String>,
 }
@@ -61,6 +61,7 @@ struct Verbosity {
     functions: bool,
     failures: bool,
     skipped: bool,
+    io: bool,
 }
 
 impl Verbosity {
@@ -79,6 +80,7 @@ impl Verbosity {
         let functions = get_flag('f');
         let failures = get_flag('x');
         let skipped = get_flag('s');
+        let io = get_flag('o');
         if !flags.is_empty() {
             panic!("Unknown verbosity flags: {:?}", flags);
         }
@@ -87,6 +89,7 @@ impl Verbosity {
             functions,
             failures,
             skipped,
+            io,
         }
     }
 
@@ -104,6 +107,10 @@ impl Verbosity {
 
     fn skipped(&self) -> bool {
         self.skipped
+    }
+
+    fn io(&self) -> bool {
+        self.io
     }
 }
 
@@ -145,18 +152,13 @@ fn analyze_files(verbose: Verbosity, paths: &[String], filter: &Filter) -> anyho
     let files = find_filenames(paths, |p| extension_equals(p, MOVE_COMPILED_EXTENSION))?;
     let mut package_data: BTreeMap<AccountAddress, PackageData> = BTreeMap::new();
     let mut package_meters: BTreeMap<AccountAddress, BoundMeter> = BTreeMap::new();
-    let mut deserialized_modules = BTreeMap::new();
     for file in files {
-        if verbose.modules() {
+        if verbose.io() {
             println!("READING: {}", file);
         }
         let bytes = std::fs::read(&file)?;
         let module = CompiledModule::deserialize_with_defaults(&bytes)?;
         let self_id = module.self_id();
-        deserialized_modules.insert(self_id, module);
-    }
-
-    for (self_id, module) in deserialized_modules {
         let address = *self_id.address();
         let name = self_id.name().to_owned();
         if !(filter.visit_package(&address) && filter.visit_module(&name)) {
